@@ -1,6 +1,6 @@
 import { notion } from '../lib.js';
 
-const PARENT_PAGE_ID = '33c87d18-641e-816b-85f1-f95a77a517b3';
+const PARENT_PAGE_ID = process.argv[2] || '34c87d18-641e-8022-87ae-c849f80c4ab2';
 
 const SCHEMA = {
   '姓名': { title: {} },
@@ -105,7 +105,7 @@ async function addStudent(dbId, s, dayOffset) {
 }
 
 async function main() {
-  const dbId = await createDatabase();
+  const dbId = await createDatabase(PARENT_PAGE_ID);
   console.log(`\n📝 Adding ${FAKE_STUDENTS.length} 學員...`);
   for (let i = 0; i < FAKE_STUDENTS.length; i++) {
     const s = FAKE_STUDENTS[i];
