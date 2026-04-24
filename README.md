@@ -1,25 +1,39 @@
-# Student Outreach
+# 💛 WhatsApp 客戶保暖工具
 
-本地 Web App，自動由 Notion CRM 拉學員，用你嘅 WhatsApp Web 逐個發送個人化訊息。雙擊啟動、browser 自動彈 UI，揀 template + 撳 Start。
+由 Notion CRM 自動拉客戶，用你嘅 WhatsApp 逐個發送個人化關心訊息。雙擊啟動、browser 自動彈 UI，揀 template + 撳 Start。
 
-![demo](https://img.shields.io/badge/Node-22%2B-green) ![license](https://img.shields.io/badge/license-MIT-blue)
+**美容院嘅關心電話 = 你嘅 WhatsApp 自動關心訊息。**
+
+![Node](https://img.shields.io/badge/Node-22%2B-green) ![License](https://img.shields.io/badge/license-MIT-blue)
+
+## 為乜要有呢個工具
+
+人手逐個 DM 30 個舊學生 / 60 個客戶「你近排點？」 → 費時 1-2 個鐘 + 容易漏。
+呢個工具：
+- 從 Notion CRM 自動 fetch 客戶
+- 5 個 preset template，揀一個 + 撳 Start
+- 自動 random delay + 個人化（`Hi {{name}}`）
+- 自動記錄「上次關心日期」返 Notion，30 日內嘅自動 skip
+
+**15 分鐘搞掂 30 個關心訊息，唔會打擾客戶又唔會漏。**
 
 ## 功能
 
-- 🔄 從 Notion CRM 自動 fetch 學員
-- 🎨 5 個訊息 template「紙樣」（課程 check-in / 溫馨關心 / 分享 AI / 生日 / 節日）
-- 👥 Checkbox 自由揀學員
-- 🌏 支援國際號碼（🇭🇰 🇸🇬 🇲🇾 🇦🇺 等）
-- ⏱ Random delay 10-20 秒 between sends（避免 pattern detection）
-- 📅 發送完自動 update Notion「上次關心日期」
-- 🧠 SQLite 記錄歷史，避免 30 日內重覆 DM 同一人
+- 🔄 從 Notion CRM fetch 客戶（任何 schema，只要有姓名 + WhatsApp）
+- 🎨 5 個 template「紙樣」（課程 check-in / 溫馨關心 / 分享 AI / 生日 / 節日）
+- 🌏 支援國際號碼（🇭🇰 🇸🇬 🇲🇾 🇦🇺 🇬🇧 🇺🇸 🇯🇵 🇰🇷 🇨🇳 🇹🇼）
+- 👥 Checkbox 自由揀邊個要 send
+- ⏱ Random delay 10-20 秒 between sends（安全，唔 trigger rate limit）
+- 📅 發送完自動 update Notion 「上次關心日期」
+- 🧠 SQLite 記錄歷史，avoid 30 日內重覆 DM
 - 📊 Real-time progress + log
+- 🎭 Test mode + Demo CRM（假名假號，拍教學片用）
 
 ## Requirements
 
 - **Node.js 22+**（[下載](https://nodejs.org)）
 - **WhatsApp 帳號**（可以 scan QR 登入 WhatsApp Web）
-- **Notion account**（要有 API integration，免費版都可以）
+- **Notion account**（免費版都可以）
 
 ## Setup（第一次，5 分鐘）
 
@@ -31,10 +45,10 @@ cd student-outreach
 npm install
 ```
 
-### 2. Notion 設定
+### 2. 整 Notion Integration
 
 1. 去 https://notion.so/my-integrations → **+ New integration**
-2. Name 填 `Student Outreach`，submit
+2. Name 填任何嘢（`WhatsApp Warmup Tool`），submit
 3. Copy 個 `Internal Integration Secret`（`ntn_...` 開頭）
 4. 去你個 CRM database 嘅 Notion page → `⋯` → `Connections` → 揀啱頭先個 integration
 
@@ -44,26 +58,20 @@ npm install
 cp .env.example .env
 ```
 
-開 `.env` 填入：
-```
-NOTION_TOKEN=ntn_你個 token
-NOTION_DB_ID=你個 CRM database ID（URL 尾段）
-PRODUCT_FILTER=12 Agent 課程  # 或者 leave empty for all
-```
+開 `.env` 填入 Notion token 同 DB ID。
 
-### 4. Notion CRM Schema
+### 4. Notion CRM Schema 要求
 
-你個 CRM database 要有呢幾個 property（名要一模一樣）：
+你個 database 要有呢幾個 property（名要一模一樣）：
 
 | Property | Type | Required |
 |----------|------|----------|
 | `姓名` | Title | ✅ |
 | `WhatsApp` | Phone | ✅ |
-| `產品` | Multi-select | 如果有 PRODUCT_FILTER |
+| `產品` | Multi-select | 只 send 特定產品用 |
 | `Status` | Status | optional |
-| `學員 Tier` | Select | optional |
-| `VIP / KOL` | Checkbox | optional（VIP 自動 skip）|
-| `上次關心日期` | Date | auto-populated |
+| `VIP / KOL` | Checkbox | VIP 自動 skip |
+| `上次關心日期` | Date | **發送完會自動寫入**，不用手填 |
 
 ## 啟動
 
@@ -74,19 +82,25 @@ PRODUCT_FILTER=12 Agent 課程  # 或者 leave empty for all
 npm start
 ```
 
-Browser 自動開 `http://localhost:3456`。
+Browser 自動彈 `http://localhost:3456`。
 
-第一次要 scan QR 登入 WhatsApp Web（同 web.whatsapp.com 一樣），之後 session 記住。
+第一次要 scan QR 登入 WhatsApp Web（同 `web.whatsapp.com` 一樣），之後 session 記住唔洗再 scan。
 
-## 點用
+## 每次用流程
 
-1. 撳「🔄 Fetch Notion」→ 學員列出
+1. 撳「🔄 Fetch Notion」→ 客戶列出
 2. 揀 template（或者改 message template）
 3. Checkbox 揀邊個要 send
-4. 如果只係想 test，開「Test mode」+ 填你自己個號碼
+4. 想 test 先 → 開「Test mode」+ 填你自己個號碼
 5. 撳「▶ Start Campaign」
 
-每條訊息中間隨機 delay，WhatsApp 安全模式。
+每條訊息中間隨機 10-20 秒 delay，WhatsApp 安全模式。
+
+## 教學：點用 Claude Code 由零重建呢個工具
+
+👉 睇 [`POM.md`](./POM.md)
+
+將成份 POM.md 內容 copy paste 俾 Claude Code，佢會 step-by-step 照住 spec 重建成個 app。呢個係 **12 AI Agent 課程** 嘅示範例子。
 
 ## Disclaimer
 
@@ -99,4 +113,4 @@ Browser 自動開 `http://localhost:3456`。
 
 ## License
 
-MIT
+MIT © 2026 EdwardAI

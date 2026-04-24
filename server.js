@@ -71,7 +71,11 @@ app.get('/api/students', async (req, res) => {
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: path.join(__dirname, '.wwebjs_auth') }),
-  puppeteer: { headless: true, args: ['--no-sandbox'] },
+  puppeteer: {
+    headless: true,
+    args: ['--no-sandbox'],
+    protocolTimeout: 180000,
+  },
 });
 
 client.on('qr', async qr => {
@@ -198,7 +202,7 @@ app.post('/api/stop', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 Student Outreach running → http://localhost:${PORT}\n`);
+  console.log(`\n💛 WhatsApp 客戶保暖工具 running → http://localhost:${PORT}\n`);
   try { execSync(`open http://localhost:${PORT}`); } catch {}
 });
 

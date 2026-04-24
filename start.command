@@ -1,8 +1,8 @@
 #!/bin/bash
-# Student Outreach — 雙擊啟動
+# WhatsApp 客戶保暖工具 — 雙擊啟動
 cd "$(dirname "$0")"
 echo ""
-echo "🎯 Student Outreach 啟動中..."
+echo "💛 WhatsApp 客戶保暖工具 啟動中..."
 echo ""
 if ! command -v node &> /dev/null; then
   echo "❌ 未裝 Node.js。請先裝：https://nodejs.org"

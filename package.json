@@ -1,7 +1,7 @@
 {
-  "name": "student-outreach",
-  "version": "0.1.0",
-  "description": "EdwardAI 12 Agent 學員關心訊息 — MVP",
+  "name": "whatsapp-warmup-tool",
+  "version": "0.4.0",
+  "description": "💛 WhatsApp 客戶保暖工具 — 由 Notion CRM 自動關心客戶",
   "type": "module",
   "scripts": {
     "app": "node server.js",
