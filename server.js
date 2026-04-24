@@ -208,7 +208,15 @@ async function runCampaign({ students, template, templateId, targetNumber, delay
       }
     } catch (err) {
       campaign.failed++;
-      sseSend('progress', { index: i, name: s.name, status: 'error', detail: `❌ ${err.message}` });
+      let friendlyError = err.message;
+      if (/no lid|not.*found|invalid/i.test(err.message)) {
+        friendlyError = '呢個號碼冇 WhatsApp account（可能係假號碼 / 停用 / 格式錯）';
+      } else if (/rate.?limit/i.test(err.message)) {
+        friendlyError = 'WhatsApp rate limit — 等幾分鐘再試';
+      } else if (/disconnect|connection/i.test(err.message)) {
+        friendlyError = 'WhatsApp 斷咗線 — 刷新頁面重連';
+      }
+      sseSend('progress', { index: i, name: s.name, status: 'error', detail: `❌ ${friendlyError}` });
       recordSend({
         studentId: s.id, studentName: s.name, phone: finalTarget,
         message, templateId, ack: null, result: 'error',
