@@ -1,0 +1,8 @@
+node_modules/
+.wwebjs_auth/
+.wwebjs_cache/
+send-log.jsonl
+send-history.sqlite
+qr.png
+.env
+.DS_Store

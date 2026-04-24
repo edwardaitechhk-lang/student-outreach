@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Student Outreach · EdwardAI</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang HK", "Segoe UI", sans-serif;
+      background: #f5f7fa;
+      color: #1f2937;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 13px; margin-bottom: 20px; }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .card h2 { font-size: 14px; margin: 0 0 12px; color: #374151; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+
+    .status-row { display: flex; align-items: center; gap: 10px; }
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .pill-init { background: #f3f4f6; color: #6b7280; }
+    .pill-qr { background: #fef3c7; color: #92400e; }
+    .pill-auth { background: #dbeafe; color: #1e40af; }
+    .pill-ready { background: #d1fae5; color: #065f46; }
+    .pill-err { background: #fee2e2; color: #991b1b; }
+
+    .qr-box { text-align: center; padding: 14px 0; }
+    .qr-box img { border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+
+    button {
+      font: inherit;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .btn-primary { background: #25d366; color: #fff; }
+    .btn-primary:hover { background: #1ebe5b; }
+    .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
+    .btn-secondary { background: #e5e7eb; color: #1f2937; }
+    .btn-danger { background: #ef4444; color: #fff; }
+
+    .template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 720px) { .template-grid { grid-template-columns: 1fr; } }
+    .template-card {
+      border: 1.5px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .template-card:hover { border-color: #25d366; }
+    .template-card.selected { border-color: #25d366; background: #f0fdf4; }
+    .template-card .name { font-weight: 600; font-size: 13px; }
+    .template-card .desc { color: #6b7280; font-size: 11px; margin-top: 2px; }
+
+    textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font: inherit;
+      font-size: 13px;
+      resize: vertical;
+      margin-top: 6px;
+    }
+
+    .student-list { max-height: 340px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+    .student {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 13px;
+    }
+    .student:last-child { border-bottom: 0; }
+    .student input[type="checkbox"] { margin-right: 10px; }
+    .student .info { flex: 1; }
+    .student .meta { color: #6b7280; font-size: 11px; }
+    .student .status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      min-width: 40px;
+      text-align: center;
+    }
+    .s-pending { background: #f3f4f6; color: #6b7280; }
+    .s-sending { background: #fef3c7; color: #92400e; }
+    .s-sent { background: #d1fae5; color: #065f46; }
+    .s-error { background: #fee2e2; color: #991b1b; }
+    .student-dim { opacity: 0.55; }
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .badge-warn { background: #fef3c7; color: #92400e; }
+    .badge-muted { background: #e5e7eb; color: #6b7280; }
+    .badge-ok { background: #d1fae5; color: #065f46; }
+
+    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .progress-bar { flex: 1; min-width: 200px; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+    .progress-bar > span { display: block; height: 100%; background: #25d366; transition: width .3s; }
+    .log {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      background: #111827;
+      color: #10b981;
+      padding: 10px;
+      border-radius: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 12px;
+      white-space: pre-wrap;
+    }
+    label.inline { font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 6px; }
+    input[type="text"], input[type="number"] {
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font: inherit;
+      font-size: 13px;
+    }
+    .warn { background: #fef3c7; color: #92400e; padding: 10px 12px; border-radius: 6px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🎯 Student Outreach</h1>
+    <div class="sub">從 Notion CRM 自動關心學生，用你嘅 WhatsApp 逐個發送。</div>
+
+    <div class="card">
+      <h2>WhatsApp 狀態</h2>
+      <div class="status-row">
+        <span id="statusPill" class="pill pill-init">啟動中...</span>
+        <span id="statusDetail" class="sub" style="margin: 0;"></span>
+      </div>
+      <div id="qrBox" class="qr-box" style="display:none;">
+        <div class="sub">用手機 WhatsApp → 設定 → 已連結裝置 → 連結裝置，對住以下 QR code scan：</div>
+        <img id="qrImg" src="" alt="QR">
+      </div>
+    </div>
+
+    <div id="mainPanel" style="display:none;">
+      <div class="grid">
+        <div class="card">
+          <h2>🎨 揀紙樣（訊息 template）</h2>
+          <div id="templateGrid" class="template-grid"></div>
+          <textarea id="templateText" rows="3" placeholder="Message..."></textarea>
+          <div class="sub" style="margin-top: 6px;">
+            <code>{{name}}</code> 會自動換成學生 first name
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>⚙️ 發送設定</h2>
+          <div style="margin-bottom: 10px;">
+            <label class="inline">
+              <input type="checkbox" id="testMode">
+              Test mode — 全部 send 去單一號碼
+            </label>
+            <input type="text" id="targetNumber" placeholder="eg 85261745763" style="width: 100%; margin-top: 6px;" disabled>
+          </div>
+          <div>
+            <label class="inline">Delay 範圍（秒）：
+              <input type="number" id="delayMin" value="10" style="width: 70px;">
+              ~
+              <input type="number" id="delayMax" value="20" style="width: 70px;">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>👥 學生名單</h2>
+        <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+          <button id="btnFetch" class="btn-secondary">🔄 Fetch Notion</button>
+          <span class="sub" id="studentCount" style="margin: 0;">未 fetch</span>
+          <div style="flex:1"></div>
+          <label class="inline">
+            <input type="checkbox" id="skipRecent" checked>
+            跳過
+            <input type="number" id="skipDays" value="30" style="width: 50px;"> 日內 send 過
+          </label>
+        </div>
+        <div id="studentList" class="student-list"></div>
+      </div>
+
+      <div class="card">
+        <h2>🚀 執行</h2>
+        <div class="controls">
+          <button id="btnStart" class="btn-primary" disabled>▶ Start Campaign</button>
+          <button id="btnStop" class="btn-danger" style="display:none;">⏸ Stop</button>
+          <div class="progress-bar"><span id="progressFill" style="width: 0%"></span></div>
+          <span id="progressText" class="sub" style="margin: 0;">0 / 0</span>
+        </div>
+        <div id="log" class="log" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
