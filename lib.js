@@ -4,11 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Try local .env first (for GitHub users), then parent project .env (Edward's setup)
 dotenv.config({ path: path.join(__dirname, '.env') });
-if (!process.env.NOTION_TOKEN) {
-  dotenv.config({ path: '/Users/hoyeungching/Desktop/VScode/Project2/.env' });
-}
 
 export const notion = new Client({ auth: process.env.NOTION_TOKEN });
 export const DB_ID = process.env.NOTION_DB_ID || '92b9c13bd4d546f7b1e706cdb3887083';
