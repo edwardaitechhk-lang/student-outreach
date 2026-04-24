@@ -142,6 +142,16 @@
       font-size: 13px;
     }
     .warn { background: #fef3c7; color: #92400e; padding: 10px 12px; border-radius: 6px; font-size: 12px; }
+
+    .setup-step { margin-bottom: 14px; }
+    .setup-step strong { display: block; font-size: 13px; margin-bottom: 4px; }
+    .setup-step .hint { font-size: 11px; color: #6b7280; margin-bottom: 6px; }
+    .setup-step input { width: 100%; }
+    .setup-msg { font-size: 12px; margin-top: 6px; padding: 6px 10px; border-radius: 4px; }
+    .setup-msg.ok { background: #d1fae5; color: #065f46; }
+    .setup-msg.err { background: #fee2e2; color: #991b1b; }
+    .setup-btn-row { display: flex; gap: 8px; margin-top: 10px; }
+    .link-btn { color: #0ea5e9; text-decoration: underline; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -149,7 +159,46 @@
     <h1>💛 WhatsApp 客戶保暖工具</h1>
     <div class="sub">由 Notion CRM 自動拉客戶，用你嘅 WhatsApp 逐個發送個人化關心訊息。</div>
 
-    <div class="card">
+    <div id="setupCard" class="card" style="display:none;">
+      <h2>⚙️ 首次設定 — 連接你嘅 Notion CRM</h2>
+      <div class="sub" style="margin-bottom: 14px;">
+        係你嘅 Notion CRM 必須包含 <code>姓名</code>、<code>WhatsApp</code> 兩個 property（其他 optional）。
+      </div>
+
+      <div class="setup-step">
+        <strong>Step 1：喺 Notion 整一個 Integration</strong>
+        <div class="hint">
+          去 <a class="link-btn" href="https://www.notion.so/my-integrations" target="_blank">notion.so/my-integrations</a>
+          → <b>+ New integration</b> → Name 填「WhatsApp Warmup」→ Submit → copy <b>Internal Integration Secret</b>（<code>ntn_...</code>）
+        </div>
+        <input type="text" id="setupToken" placeholder="ntn_xxxxxxxx..." autocomplete="off">
+      </div>
+
+      <div class="setup-step">
+        <strong>Step 2：分享 CRM 畀 Integration</strong>
+        <div class="hint">
+          開你個 Notion CRM database page → 右上 <b>⋯</b> → <b>Connections</b> → 揀啱頭先個 integration
+          → 之後 copy 個 URL paste 落面（或者直接 paste database ID）
+        </div>
+        <input type="text" id="setupDbUrl" placeholder="https://notion.so/... 或者 32 位 DB ID" autocomplete="off">
+      </div>
+
+      <div class="setup-step">
+        <strong>Step 3：Product Filter（可選）</strong>
+        <div class="hint">
+          如果你只想 send 俾某個「產品」標籤嘅人（例如「12 Agent 課程」），填入；想 send 俾全部 CRM 就留空。
+        </div>
+        <input type="text" id="setupProductFilter" placeholder="e.g. 12 Agent 課程（留空 = 全部）" autocomplete="off">
+      </div>
+
+      <div class="setup-btn-row">
+        <button id="btnSetupTest" class="btn-secondary">🧪 Test 連線</button>
+        <button id="btnSetupSave" class="btn-primary">💾 Save + 啟動</button>
+      </div>
+      <div id="setupMsg"></div>
+    </div>
+
+    <div id="waCard" class="card">
       <h2>WhatsApp 狀態</h2>
       <div class="status-row">
         <span id="statusPill" class="pill pill-init">啟動中...</span>
@@ -168,7 +217,7 @@
           <div id="templateGrid" class="template-grid"></div>
           <textarea id="templateText" rows="3" placeholder="Message..."></textarea>
           <div class="sub" style="margin-top: 6px;">
-            <code>{{name}}</code> 會自動換成學生 first name
+            <code>{{name}}</code> 會自動換成客戶 first name
           </div>
         </div>
 
@@ -192,11 +241,12 @@
       </div>
 
       <div class="card">
-        <h2>👥 學生名單</h2>
+        <h2>👥 客戶名單</h2>
         <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
           <button id="btnFetch" class="btn-secondary">🔄 Fetch Notion</button>
           <span class="sub" id="studentCount" style="margin: 0;">未 fetch</span>
           <div style="flex:1"></div>
+          <button id="btnReconfig" class="btn-secondary" style="font-size: 12px; padding: 6px 10px;">⚙️ 重設 CRM</button>
           <label class="inline">
             <input type="checkbox" id="skipRecent" checked>
             跳過

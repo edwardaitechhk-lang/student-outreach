@@ -1,4 +1,16 @@
-import { notion } from '../lib.js';
+import { Client } from '@notionhq/client';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
+if (!process.env.NOTION_TOKEN) {
+  console.error('❌ NOTION_TOKEN 冇喺 .env 度搵到');
+  process.exit(1);
+}
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
 
 const PARENT_PAGE_ID = process.argv[2] || '34c87d18-641e-8022-87ae-c849f80c4ab2';
 

@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const state = { templates: [], selectedTemplateId: null, students: [] };
+const state = { templates: [], selectedTemplateId: null, students: [], notionConfigured: false };
 
 const statusLabels = {
   initializing: { text: '啟動中...', cls: 'pill-init' },
@@ -16,7 +16,68 @@ function setStatus(status, detail) {
   $('statusPill').className = 'pill ' + info.cls;
   $('statusDetail').textContent = detail || '';
   $('qrBox').style.display = (status === 'qr') ? 'block' : 'none';
-  $('mainPanel').style.display = (status === 'ready') ? 'block' : 'none';
+  updatePanels();
+}
+
+function updatePanels() {
+  const statusEl = $('statusPill');
+  const isReady = statusEl && statusEl.classList.contains('pill-ready');
+  $('setupCard').style.display = state.notionConfigured ? 'none' : 'block';
+  $('waCard').style.display = state.notionConfigured ? 'block' : 'none';
+  $('mainPanel').style.display = (state.notionConfigured && isReady) ? 'block' : 'none';
+}
+
+function setSetupMsg(text, cls) {
+  const el = $('setupMsg');
+  el.className = 'setup-msg ' + (cls || '');
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+}
+
+async function testNotionConfig() {
+  const token = $('setupToken').value.trim();
+  const dbId = $('setupDbUrl').value.trim();
+  if (!token || !dbId) return setSetupMsg('Step 1/2 要填', 'err');
+  setSetupMsg('測試緊...', 'ok');
+  const r = await fetch('/api/config/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, dbId }),
+  });
+  const data = await r.json();
+  if (data.ok) setSetupMsg(`✅ 連到：「${data.dbTitle}」(${data.dbId})`, 'ok');
+  else setSetupMsg('❌ ' + data.error, 'err');
+}
+
+async function saveNotionConfig() {
+  const token = $('setupToken').value.trim();
+  const dbId = $('setupDbUrl').value.trim();
+  const productFilter = $('setupProductFilter').value.trim();
+  if (!token || !dbId) return setSetupMsg('Step 1/2 要填', 'err');
+  setSetupMsg('儲存緊...', 'ok');
+  const r = await fetch('/api/config/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, dbId, productFilter }),
+  });
+  const data = await r.json();
+  if (data.ok) {
+    setSetupMsg(`✅ 已儲存！連到「${data.dbTitle}」`, 'ok');
+    state.notionConfigured = true;
+    updatePanels();
+  } else {
+    setSetupMsg('❌ ' + data.error, 'err');
+  }
+}
+
+function reconfigure() {
+  if (!confirm('重設 CRM 連線？現有 token 會被覆蓋。')) return;
+  state.notionConfigured = false;
+  $('setupToken').value = '';
+  $('setupDbUrl').value = '';
+  $('setupProductFilter').value = '';
+  setSetupMsg('', '');
+  updatePanels();
 }
 
 function renderTemplates() {
@@ -54,6 +115,7 @@ function renderStudents() {
     else if (s.lastSentDays !== null && s.lastSentDays < 30) sentBadge = `<span class="badge badge-muted">${s.lastSentDays}d 前 send 過</span>`;
     else if (s.lastSentDays !== null) sentBadge = `<span class="badge badge-ok">上次 ${s.lastSentDays}d 前</span>`;
 
+    const flag = s.countryFlag || '🌍';
     const div = document.createElement('div');
     div.className = 'student' + (recentlySent ? ' student-dim' : '');
     div.id = `s-${i}`;
@@ -61,7 +123,7 @@ function renderStudents() {
       <input type="checkbox" ${shouldCheck ? 'checked' : ''} data-index="${i}">
       <div class="info">
         <div><strong>${s.name}</strong> ${sentBadge}</div>
-        <div class="meta">+${s.phone} · ${s.tier || '—'} · ${s.status || ''}</div>
+        <div class="meta">${flag} +${s.phone} · ${s.tier || '—'} · ${s.status || ''}</div>
       </div>
       <span class="status s-pending">待發</span>
     `;
@@ -118,7 +180,7 @@ async function fetchStudents() {
 
 async function startCampaign() {
   const selected = Array.from(document.querySelectorAll('#studentList input:checked')).map(cb => state.students[parseInt(cb.dataset.index)]);
-  if (!selected.length) return alert('揀至少一個學員');
+  if (!selected.length) return alert('揀至少一個客戶');
 
   const template = $('templateText').value.trim();
   if (!template) return alert('Template 唔可以空');
@@ -128,7 +190,7 @@ async function startCampaign() {
   if (testMode && !targetNumber) return alert('Test mode 要填 target number');
 
   if (!testMode) {
-    const confirmMsg = `真係會 send 俾 ${selected.length} 個真學生（唔係 test mode），確定？`;
+    const confirmMsg = `真係會 send 俾 ${selected.length} 個真客戶（唔係 test mode），確定？`;
     if (!confirm(confirmMsg)) return;
   }
 
@@ -136,7 +198,7 @@ async function startCampaign() {
   $('btnStop').style.display = 'inline-block';
   $('log').style.display = 'block';
   $('log').textContent = '';
-  appendLog(`🚀 開始 campaign：${selected.length} 個學員${testMode ? `（Test → +${targetNumber}）` : '（真發送）'}`);
+  appendLog(`🚀 開始 campaign：${selected.length} 個客戶${testMode ? `（Test → +${targetNumber}）` : '（真發送）'}`);
 
   const r = await fetch('/api/start', {
     method: 'POST',
@@ -166,6 +228,9 @@ async function stopCampaign() {
 $('btnFetch').onclick = fetchStudents;
 $('btnStart').onclick = startCampaign;
 $('btnStop').onclick = stopCampaign;
+$('btnReconfig').onclick = reconfigure;
+$('btnSetupTest').onclick = testNotionConfig;
+$('btnSetupSave').onclick = saveNotionConfig;
 $('testMode').onchange = (e) => { $('targetNumber').disabled = !e.target.checked; };
 $('skipRecent').onchange = renderStudents;
 $('skipDays').onchange = renderStudents;
@@ -176,13 +241,19 @@ document.addEventListener('change', e => {
 const es = new EventSource('/api/events');
 es.addEventListener('hello', e => {
   const s = JSON.parse(e.data);
+  state.notionConfigured = !!s.notionConfigured;
   setStatus(s.waStatus, s.selfPhone ? `登入：+${s.selfPhone}` : '');
   if (s.waStatus === 'qr' && s.qrDataUrl) $('qrImg').src = s.qrDataUrl;
+  updatePanels();
 });
 es.addEventListener('wa_status', e => {
   const s = JSON.parse(e.data);
   setStatus(s.status, s.selfPhone ? `登入：+${s.selfPhone}` : '');
   if (s.status === 'qr' && s.qrDataUrl) $('qrImg').src = s.qrDataUrl;
+});
+es.addEventListener('config_saved', e => {
+  state.notionConfigured = true;
+  updatePanels();
 });
 es.addEventListener('progress', e => {
   const p = JSON.parse(e.data);

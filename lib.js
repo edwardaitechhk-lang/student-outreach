@@ -1,26 +1,53 @@
 import { Client } from '@notionhq/client';
 import dotenv from 'dotenv';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '.env') });
+export const ENV_PATH = path.join(__dirname, '.env');
 
-export const notion = new Client({ auth: process.env.NOTION_TOKEN });
-export const DB_ID = process.env.NOTION_DB_ID || '92b9c13bd4d546f7b1e706cdb3887083';
-export const PRODUCT_FILTER = process.env.PRODUCT_FILTER || '12 Agent 課程';
+let notion;
+let DB_ID;
+let PRODUCT_FILTER;
+
+export function loadConfig() {
+  dotenv.config({ path: ENV_PATH, override: true });
+  notion = process.env.NOTION_TOKEN ? new Client({ auth: process.env.NOTION_TOKEN }) : null;
+  DB_ID = process.env.NOTION_DB_ID || null;
+  PRODUCT_FILTER = process.env.PRODUCT_FILTER || '';
+}
+
+export function isConfigured() {
+  return !!(process.env.NOTION_TOKEN && process.env.NOTION_DB_ID);
+}
+
+export function saveConfig({ token, dbId, productFilter }) {
+  const cleanDbId = extractDbId(dbId);
+  const lines = [
+    `NOTION_TOKEN=${token}`,
+    `NOTION_DB_ID=${cleanDbId}`,
+    `PRODUCT_FILTER=${productFilter || ''}`,
+    '',
+  ];
+  fs.writeFileSync(ENV_PATH, lines.join('\n'), 'utf8');
+  loadConfig();
+  return { cleanDbId };
+}
+
+export function extractDbId(input) {
+  if (!input) return '';
+  const str = String(input).trim();
+  const hex = str.match(/[0-9a-f]{32}/i);
+  if (hex) return hex[0];
+  return str.replace(/-/g, '');
+}
+
+loadConfig();
 
 const COUNTRY_FLAGS = {
-  '852': '🇭🇰',
-  '65': '🇸🇬',
-  '60': '🇲🇾',
-  '61': '🇦🇺',
-  '86': '🇨🇳',
-  '886': '🇹🇼',
-  '44': '🇬🇧',
-  '1': '🇺🇸',
-  '81': '🇯🇵',
-  '82': '🇰🇷',
+  '852': '🇭🇰', '65': '🇸🇬', '60': '🇲🇾', '61': '🇦🇺', '86': '🇨🇳',
+  '886': '🇹🇼', '44': '🇬🇧', '1': '🇺🇸', '81': '🇯🇵', '82': '🇰🇷',
 };
 
 export function normalizePhone(raw) {
@@ -41,6 +68,7 @@ export function detectCountry(phone) {
 
 function getTitle(props) {
   const key = Object.keys(props).find(k => props[k].type === 'title');
+  if (!key) return '';
   return props[key].title.map(t => t.plain_text).join('').trim();
 }
 
@@ -49,10 +77,12 @@ function firstName(fullName) {
   return cleaned.split(/\s+/)[0];
 }
 
-export async function fetchStudents({ limit = 100, dbId = DB_ID, productFilter = PRODUCT_FILTER } = {}) {
-  const queryArgs = { database_id: dbId, page_size: 100 };
-  if (productFilter) {
-    queryArgs.filter = { property: '產品', multi_select: { contains: productFilter } };
+export async function fetchStudents({ limit = 100 } = {}) {
+  if (!notion || !DB_ID) throw new Error('Notion 未設定 — 先喺 Settings 填 token + DB URL');
+
+  const queryArgs = { database_id: DB_ID, page_size: 100 };
+  if (PRODUCT_FILTER) {
+    queryArgs.filter = { property: '產品', multi_select: { contains: PRODUCT_FILTER } };
   }
   const res = await notion.databases.query(queryArgs);
 
@@ -83,12 +113,22 @@ export async function fetchStudents({ limit = 100, dbId = DB_ID, productFilter =
     .slice(0, limit);
 }
 
+export async function testConnection({ token, dbId }) {
+  const testClient = new Client({ auth: token });
+  const cleanDbId = extractDbId(dbId);
+  try {
+    const db = await testClient.databases.retrieve({ database_id: cleanDbId });
+    return { ok: true, dbTitle: db.title?.[0]?.plain_text || '(untitled)', dbId: cleanDbId };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 export async function updateLastContact(pageId, dateIso = new Date().toISOString().slice(0, 10)) {
+  if (!notion) return;
   return notion.pages.update({
     page_id: pageId,
-    properties: {
-      '上次關心日期': { date: { start: dateIso } },
-    },
+    properties: { '上次關心日期': { date: { start: dateIso } } },
   });
 }
 

@@ -5,7 +5,7 @@ const { Client, LocalAuth } = pkg;
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { fetchStudents, randomDelay, updateLastContact } from './lib.js';
+import { fetchStudents, randomDelay, updateLastContact, isConfigured, saveConfig, testConnection, loadConfig } from './lib.js';
 import { TEMPLATES } from './templates.js';
 import { recordSend, getAllLastSent } from './db.js';
 
@@ -52,13 +52,42 @@ app.get('/api/events', (req, res) => {
     'Connection': 'keep-alive',
   });
   res.flushHeaders();
-  res.write(`event: hello\ndata: ${JSON.stringify(state)}\n\n`);
+  const helloPayload = { ...state, notionConfigured: isConfigured() };
+  res.write(`event: hello\ndata: ${JSON.stringify(helloPayload)}\n\n`);
   sseClients.add(res);
   req.on('close', () => sseClients.delete(res));
 });
 
 app.get('/api/templates', (req, res) => res.json(TEMPLATES));
 app.get('/api/status', (req, res) => res.json(state));
+
+app.get('/api/config/status', (req, res) => {
+  res.json({
+    notionConfigured: isConfigured(),
+    productFilter: process.env.PRODUCT_FILTER || '',
+  });
+});
+
+app.post('/api/config/test', async (req, res) => {
+  const { token, dbId } = req.body || {};
+  if (!token || !dbId) return res.json({ ok: false, error: '缺少 token 或 DB URL' });
+  const result = await testConnection({ token, dbId });
+  res.json(result);
+});
+
+app.post('/api/config/save', async (req, res) => {
+  const { token, dbId, productFilter } = req.body || {};
+  if (!token || !dbId) return res.status(400).json({ ok: false, error: '缺少 token 或 DB URL' });
+  try {
+    const test = await testConnection({ token, dbId });
+    if (!test.ok) return res.status(400).json({ ok: false, error: '連唔到 Notion：' + test.error });
+    const { cleanDbId } = saveConfig({ token, dbId, productFilter });
+    sseSend('config_saved', { dbTitle: test.dbTitle, dbId: cleanDbId });
+    res.json({ ok: true, dbTitle: test.dbTitle, dbId: cleanDbId });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 app.get('/api/students', async (req, res) => {
   try {
