@@ -5,12 +5,26 @@ const { Client, LocalAuth } = pkg;
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fetchStudents, randomDelay, updateLastContact, isConfigured, saveConfig, testConnection, loadConfig } from './lib.js';
 import { TEMPLATES } from './templates.js';
 import { recordSend, getAllLastSent } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 3456;
+
+function cleanSingletonLocks() {
+  const sessionDir = path.join(__dirname, '.wwebjs_auth', 'session');
+  if (!fs.existsSync(sessionDir)) return;
+  try {
+    for (const f of fs.readdirSync(sessionDir)) {
+      if (f.startsWith('Singleton')) {
+        fs.rmSync(path.join(sessionDir, f), { force: true });
+      }
+    }
+  } catch {}
+}
+cleanSingletonLocks();
 
 const app = express();
 app.use(express.json());
@@ -234,5 +248,13 @@ app.listen(PORT, () => {
   console.log(`\n💛 WhatsApp 客戶保暖工具 running → http://localhost:${PORT}\n`);
   try { execSync(`open http://localhost:${PORT}`); } catch {}
 });
+
+async function gracefulShutdown() {
+  console.log('\n👋 Graceful shutdown...');
+  try { await client.destroy(); } catch {}
+  process.exit(0);
+}
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 client.initialize();

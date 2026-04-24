@@ -62,9 +62,13 @@ async function saveNotionConfig() {
   });
   const data = await r.json();
   if (data.ok) {
-    setSetupMsg(`✅ 已儲存！連到「${data.dbTitle}」`, 'ok');
+    setSetupMsg(`✅ 已儲存！連到「${data.dbTitle}」— 即時重新載入名單...`, 'ok');
     state.notionConfigured = true;
+    state.students = [];
+    $('studentList').innerHTML = '';
+    $('studentCount').textContent = '未 fetch';
     updatePanels();
+    setTimeout(() => fetchStudents(), 800);
   } else {
     setSetupMsg('❌ ' + data.error, 'err');
   }
@@ -73,6 +77,9 @@ async function saveNotionConfig() {
 function reconfigure() {
   if (!confirm('重設 CRM 連線？現有 token 會被覆蓋。')) return;
   state.notionConfigured = false;
+  state.students = [];
+  $('studentList').innerHTML = '';
+  $('studentCount').textContent = '未 fetch';
   $('setupToken').value = '';
   $('setupDbUrl').value = '';
   $('setupProductFilter').value = '';
