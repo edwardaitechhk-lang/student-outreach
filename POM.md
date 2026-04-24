@@ -1,6 +1,6 @@
-# 📄 POM — WhatsApp 客戶保暖工具（Build Prompt for Claude Code）
+# 📄 POM — 💛 WhatsApp 客戶保暖工具（Build Prompt for Claude Code）
 
-> **點用**：將呢份文件由「# 開始」到「# 結束」整份 copy paste 去你嘅 Claude Code，Claude 會 step-by-step 幫你建成個 app。需要 Node.js 22+ 已裝。
+> **點用**：將呢份文件由「# 開始」到「# 結束」整份 copy paste 去你嘅 Claude Code，佢會 step-by-step 幫你建成個 app。需要 Node.js 22+ 已裝。
 
 ---
 
@@ -8,31 +8,26 @@
 
 你好 Claude，我想你幫我由零起建一個本地 Web App，功能係：
 
-**💛 WhatsApp 客戶保暖工具** — 由 Notion CRM 自動拉客戶名單，用我自己嘅 WhatsApp 逐個發送個人化關心訊息（例如：「Hi Alex，呢排點呀？」）。
+**💛 WhatsApp 客戶保暖工具** — 由 Notion CRM 自動拉客戶名單，用我自己嘅 WhatsApp 逐個發送個人化關心訊息。
+
+**關鍵特色**：學生 clone 呢個 repo 第一次開佢，會見到一個 **Setup Wizard** 叫佢填自己嘅 Notion token + DB URL。唔洗手動改 `.env`。
 
 ## 1. 為乜要建
 
-我有 30-100 個舊客戶 / 學生 / lead 喺 Notion CRM 入面。我想**偶然（每 1-2 個月）**發一次溫馨訊息問候佢哋，但：
-- 人手逐個 copy/paste 太慢（要 1-2 個鐘）
-- 容易漏咗邊個、重覆 send 俾同一個
-- 想個人化（自動 fill 名），但又唔想失自然感
+我有 30-100 個舊客戶 / 學生 / lead 喺 Notion CRM 入面。我想**偶然（每 1-2 個月）**問候佢哋一次，但人手逐個太慢、容易漏、難個人化。
 
-所以我要個工具：
-- 開咗 browser 就見到 UI
-- 撳一下掣就 fetch 晒 Notion CRM 入面嘅客戶
-- 揀一個 template → 撳 Start → 自動逐個 send，每個中間隨機 10-20 秒 delay
-- 發送完自動喺 Notion 記「上次關心日期」，下次就唔會重覆 send 最近聯絡過嘅
+呢個 app 解決：Notion 拉 → 揀 template → 自動逐個 send，有 random delay 安全模式，送完自動 update Notion「上次關心日期」，下次 auto-skip recent contacted。
 
 ## 2. Tech Stack
 
 | 層 | 技術 |
 |----|------|
-| Frontend | Vanilla HTML + CSS + JS（唔用 framework，簡單就得） |
-| Backend | **Node.js 22+** + **Express 5** + **Server-Sent Events**（real-time progress） |
-| WhatsApp | **`whatsapp-web.js`** library（經 Puppeteer headless 連 web.whatsapp.com） |
-| Notion | **`@notionhq/client`** official SDK |
-| 本地 DB | **`better-sqlite3`**（記 send history） |
-| QR Code | **`qrcode`**（render WhatsApp QR code 做圖） |
+| Frontend | Vanilla HTML + CSS + JS（一個 `index.html` + `app.js` + inline CSS）|
+| Backend | **Node.js 22+** + **Express 5** + **Server-Sent Events** |
+| WhatsApp | **`whatsapp-web.js` ^1.34**（Puppeteer headless 連 web.whatsapp.com） |
+| Notion | **`@notionhq/client`** |
+| 本地 DB | **`better-sqlite3`**（send history） |
+| QR | **`qrcode`** npm |
 | Env | **`dotenv`** |
 
 ## 3. Folder Structure
@@ -40,221 +35,239 @@
 ```
 project-root/
 ├── package.json
-├── .env.example            # token placeholders
+├── .env                    # runtime config（gitignored），由 setup wizard 自動建
+├── .env.example            # 指引 placeholder
 ├── .gitignore              # ignore node_modules, .env, .wwebjs_auth, *.sqlite
 ├── README.md
-├── start.command           # macOS 雙擊啟動 script（可選）
-├── server.js               # Express server 入口
-├── lib.js                  # Notion fetch + phone normalize + helpers
-├── db.js                   # SQLite schema + helpers
-├── templates.js            # message template 庫
+├── start.command           # macOS 雙擊啟動
+├── server.js               # Express + WA + Notion orchestration
+├── lib.js                  # config / notion fetch / phone normalize
+├── db.js                   # SQLite
+├── templates.js            # 5 個預設 message template
 ├── public/
-│   ├── index.html          # Dashboard UI
-│   └── app.js              # Frontend JS（SSE + DOM manipulation）
+│   ├── index.html          # UI（設 wizard card + WA status + main dashboard）
+│   └── app.js              # Frontend JS（SSE, DOM, setup flow）
 └── scripts/
-    └── create-demo-crm.js  # （可選）create Notion demo DB
+    └── create-demo-crm.js  # 可選：一鍵起 Notion demo DB
 ```
 
-## 4. 環境變數（`.env`）
+## 4. 環境變數
 
+由 setup wizard 自動寫入 `.env`（學生唔需要手動改）：
 ```
-NOTION_TOKEN=ntn_xxxxx           # Notion integration token
-NOTION_DB_ID=xxxxxxxxxxxxxxxx    # CRM database ID
-PRODUCT_FILTER=12 Agent 課程     # optional, filter by 產品 multi-select
+NOTION_TOKEN=ntn_xxxxx
+NOTION_DB_ID=32-char-hex
+PRODUCT_FILTER=              # optional
 ```
 
-## 5. Notion CRM Schema 需求
+## 5. Notion CRM Schema 要求
 
-Database 要有呢啲 property（名要一模一樣，中文）：
+你個 CRM database 要有呢啲 property（中文名，一模一樣）：
 
-| Property 名 | Type |
-|------------|------|
-| `姓名` | Title |
-| `WhatsApp` | Phone number |
-| `產品` | Multi-select |
-| `Status` | Status |
-| `學員 Tier` | Select |
-| `VIP / KOL` | Checkbox |
-| `上次關心日期` | Date |
+| Property | Type | Required |
+|---------|------|----------|
+| `姓名` | Title | ✅ |
+| `WhatsApp` | Phone number | ✅ |
+| `產品` | Multi-select | only if PRODUCT_FILTER set |
+| `Status` | Status | optional |
+| `學員 Tier` | Select | optional |
+| `VIP / KOL` | Checkbox | VIP auto-skip |
+| `上次關心日期` | Date | **auto-written**，campaign 完自動填 |
 
-## 6. 各 File 嘅功能詳細 Spec
+## 6. 各 File 詳細 Spec
 
 ### 6.1 `package.json`
 
-- `"type": "module"`（用 ES modules）
-- Scripts：`"start": "node server.js"`, `"app": "node server.js"`
+- `"type": "module"`（ES modules）
+- Script：`"start": "node server.js"`
 - Dependencies：
-  - `@notionhq/client` ^2.2.15
-  - `better-sqlite3` ^12.x
-  - `dotenv` ^16.x
-  - `express` ^5.x
-  - `qrcode` ^1.5.x
-  - `whatsapp-web.js` ^1.26.0
+  ```
+  @notionhq/client ^2.2
+  better-sqlite3 ^12
+  dotenv ^16
+  express ^5
+  qrcode ^1.5
+  qrcode-terminal ^0.12
+  whatsapp-web.js ^1.34
+  ```
 
-### 6.2 `lib.js`
+### 6.2 `lib.js` — 核心 config + Notion helpers
 
-Export：`notion`, `DB_ID`, `PRODUCT_FILTER`, `fetchStudents()`, `normalizePhone()`, `detectCountry()`, `updateLastContact()`, `renderMessage()`, `randomDelay()`.
+Export：`loadConfig`, `isConfigured`, `saveConfig`, `extractDbId`, `testConnection`, `fetchStudents`, `updateLastContact`, `normalizePhone`, `detectCountry`, `renderMessage`, `randomDelay`, `ENV_PATH`.
 
-**`normalizePhone(raw)`**：
-- 輸入可能係 `+852 9152 1675`、`＋852 98668811`（全形＋）、`9152 1675`（8 位本地）、`+60 17-403 5850`（馬拉）、`+65 9188 9567`（SG）
-- 做法：
-  1. 全形 `＋` 換成半形 `+`
-  2. 刪曬空格、dash、括號
-  3. 只留 digit
-  4. 若長度 = 8 且頭位 2-9 → 加 `852` prefix
-  5. 否則原樣返回
+**關鍵 logic**：
 
-**`detectCountry(phone)`**：
-- 根據 phone 開頭 match country code
-- Return `{ code: '852', flag: '🇭🇰' }` 等
-- 支援：852 (HK), 65 (SG), 60 (MY), 61 (AU), 86 (CN), 886 (TW), 44 (UK), 1 (US), 81 (JP), 82 (KR)
-- 冇 match → `flag: '🌍'`
+```js
+const ENV_PATH = path.join(__dirname, '.env');
+let notion, DB_ID, PRODUCT_FILTER;
 
-**`fetchStudents({ limit = 100 })`**：
-- Query Notion database（由 `.env` 嘅 `NOTION_DB_ID`）
-- Filter by `產品 contains PRODUCT_FILTER`（如果 env 有設）
-- Map 每個 page 做 student object：
-  ```js
-  {
-    id, name, firstName, phone, phoneRaw,
-    country, countryFlag, status, tier, vip,
-    lastContactNotion, createdTime
+export function loadConfig() {
+  dotenv.config({ path: ENV_PATH, override: true });
+  notion = process.env.NOTION_TOKEN ? new Client({ auth: process.env.NOTION_TOKEN }) : null;
+  DB_ID = process.env.NOTION_DB_ID || null;
+  PRODUCT_FILTER = process.env.PRODUCT_FILTER || '';
+}
+loadConfig();
+
+export function isConfigured() {
+  return !!(process.env.NOTION_TOKEN && process.env.NOTION_DB_ID);
+}
+
+export function extractDbId(input) {
+  // accept full Notion URL OR 32-char hex OR UUID-hyphen
+  const hex = String(input).match(/[0-9a-f]{32}/i);
+  if (hex) return hex[0];
+  return String(input).replace(/-/g, '');
+}
+
+export function saveConfig({ token, dbId, productFilter }) {
+  const cleanDbId = extractDbId(dbId);
+  fs.writeFileSync(ENV_PATH, [
+    `NOTION_TOKEN=${token}`,
+    `NOTION_DB_ID=${cleanDbId}`,
+    `PRODUCT_FILTER=${productFilter || ''}`,
+    '',
+  ].join('\n'));
+  loadConfig();  // 即時 reload，唔洗重啟 server
+  return { cleanDbId };
+}
+
+export async function testConnection({ token, dbId }) {
+  const testClient = new Client({ auth: token });
+  const cleanDbId = extractDbId(dbId);
+  try {
+    const db = await testClient.databases.retrieve({ database_id: cleanDbId });
+    return { ok: true, dbTitle: db.title?.[0]?.plain_text || '(untitled)', dbId: cleanDbId };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
-  ```
-- `firstName` = 去曬括號內容後取第一個 whitespace-split 字
-- Filter out：冇 valid phone（要匹配 `/^\d{8,15}$/`）嘅、VIP/KOL 標記嘅
-- 限制 `limit` 個
+}
+```
 
-**`updateLastContact(pageId, dateIso?)`**：
-- Call `notion.pages.update` 將 `上次關心日期` property 設成今日（或者 caller 指定）
-- 失敗唔 throw，log error（唔好影響 send loop）
+**`normalizePhone`**：handle 全形 `＋`、空格、dash、括號；8-digit + 頭位 2-9 = 加 `852` prefix；其他原樣。
 
-**`renderMessage(student)`**：
-- 預設返 `` `Hi ${student.firstName}，有冇開始睇課程呀？VS Code 上面有冇咩需要幫手或者發問嘅地方？` ``
-- 但 template 應該由 `templates.js` 管，呢個只係 fallback
+**`detectCountry`**：match prefix 出國旗（🇭🇰 🇸🇬 🇲🇾 🇦🇺 🇬🇧 🇺🇸 🇯🇵 🇰🇷 🇨🇳 🇹🇼；否則 🌍）。
 
-**`randomDelay(minSec, maxSec)`**：
-- Return `Math.floor((Math.random() * (max - min) + min) * 1000)` 毫秒
+**`fetchStudents({ limit })`**：
+- 未 configure 就 throw
+- Query Notion，filter by `產品 contains PRODUCT_FILTER`（如有）
+- Return student object 包：id / name / firstName / phone / phoneRaw / country / countryFlag / status / tier / vip / lastContactNotion / createdTime
+- Filter out 冇 valid phone (`/^\d{8,15}$/`) 同 VIP
 
-### 6.3 `db.js`
+**`updateLastContact(pageId)`**：call `notion.pages.update` 將 `上次關心日期` 設今日。
 
-- 用 `better-sqlite3`，DB file `send-history.sqlite`
-- Schema：
-  ```sql
-  CREATE TABLE IF NOT EXISTS send_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id TEXT NOT NULL,
-    student_name TEXT,
-    phone TEXT,
-    message TEXT,
-    template_id TEXT,
-    ack INTEGER,
-    result TEXT,        -- 'sent' / 'error'
-    sent_at INTEGER NOT NULL  -- Date.now()
-  );
-  CREATE INDEX IF NOT EXISTS idx_student_sent ON send_history(student_id, sent_at);
-  ```
-- Export：`recordSend(obj)`, `getAllLastSent()`（return `{ student_id: timestamp }` map）
+### 6.3 `db.js` — SQLite
+
+```sql
+CREATE TABLE send_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  student_id TEXT, student_name TEXT, phone TEXT, message TEXT,
+  template_id TEXT, ack INTEGER, result TEXT, sent_at INTEGER
+);
+CREATE INDEX idx_student_sent ON send_history(student_id, sent_at);
+```
+
+Export `recordSend({...})`, `getAllLastSent()` → `{ student_id: timestamp }`.
 
 ### 6.4 `templates.js`
 
-Export `TEMPLATES` array，每個 object：`{ id, name, description, text }`。至少 5 個：
-- `checkin` — 📚 課程 check-in
-- `warmcare` — 💛 溫馨關心
-- `newupdate` — 🚀 分享 AI 新嘢
-- `birthday` — 🎂 生日祝福
-- `festival` — 🎉 節日問候
+5 個 preset：`checkin` / `warmcare` / `newupdate` / `birthday` / `festival`，每個 `{ id, name, description, text }`，`text` 用 `{{name}}` placeholder。
 
-Template 個 `text` 用 `{{name}}` placeholder。
+### 6.5 `server.js` — Express + SSE
 
-### 6.5 `server.js`
-
-Express server 於 port `3456`，主要做：
-
-**Static files**：`app.use(express.static('public'))`
+Port `3456`，serve `public/`。
 
 **Routes**：
-- `GET /api/events` — Server-Sent Events 串流 real-time 進度
-- `GET /api/templates` — return `TEMPLATES`
-- `GET /api/students` — call `fetchStudents()`，加埋 SQLite 嘅 `lastSentAt` / `lastSentDays` 入每個 student object
-- `POST /api/start` — body: `{ studentIds, template, templateId, targetNumber, delayMin, delayMax }`，觸發 campaign
-- `POST /api/stop` — set `state.campaign.stopRequested = true`
 
-**WhatsApp Client Initialize**：
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/events` | GET | SSE stream（發 hello / wa_status / progress / wait / campaign_done） |
+| `/api/templates` | GET | Return TEMPLATES |
+| `/api/config/status` | GET | `{ notionConfigured: bool, productFilter }` |
+| `/api/config/test` | POST | body `{ token, dbId }` → validate with Notion API |
+| `/api/config/save` | POST | body `{ token, dbId, productFilter }` → test + saveConfig + sseSend('config_saved') |
+| `/api/students` | GET | fetchStudents + merge SQLite lastSent info |
+| `/api/start` | POST | body `{ studentIds, template, templateId, targetNumber, delayMin, delayMax }` |
+| `/api/stop` | POST | set stopRequested flag |
+
+**WhatsApp Client**：
 ```js
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
     headless: true,
     args: ['--no-sandbox'],
-    protocolTimeout: 180000,
+    protocolTimeout: 180000,  // whatsapp-web.js cold-start 可能慢
   },
 });
 ```
 
-Event handlers：
-- `qr` → 用 `QRCode.toDataURL(qr)` render PNG → SSE push 去 frontend
-- `authenticated` → SSE push status
-- `ready` → SSE push status + `client.info.wid.user`（登入帳號）
-- `auth_failure` / `disconnected` → SSE push
+Event handlers：`qr` → `QRCode.toDataURL` → SSE push；`authenticated` / `ready` / `auth_failure` / `disconnected` 各自 SSE push。
 
-**Campaign runner `runCampaign()`**：
+**`runCampaign()` loop**：
 ```
-for each student in students:
-  if stopRequested, break
+for each student:
   message = template.replaceAll('{{name}}', student.firstName)
-  chatId = targetNumber || student.phone + '@c.us'
-  SSE push 'sending'
+  chatId = (targetNumber || student.phone) + '@c.us'
+  SSE 'progress' sending
   try:
     msg = await client.sendMessage(chatId, message)
-    ack = await waitForAck(msg, 1, 10000)  # 最多 10 秒
-    SSE push 'sent'
+    ack = await waitForAck(msg, 1, 10000)  # up to 10s polling msg.ack
+    SSE 'progress' sent
     db.recordSend({...})
-    if not isSelfSend and not targetNumber:
+    if not testMode and not isSelfSend:
       updateLastContact(student.id).catch(log)
   except:
-    SSE push 'error'
-    db.recordSend({result: 'error'})
+    SSE 'progress' error
   await randomDelay(delayMin, delayMax)
-SSE push 'campaign_done'
+SSE 'campaign_done'
 ```
 
-**ACK handling 重要**：
-- `msg.ack` 係實時更新嘅 property（0 pending, 1 server, 2 device, 3 read）
-- `waitForAck(msg, minAck, timeoutMs)` 每 500ms check `msg.ack >= minAck`，超時返回實際 ack 值
-- **唔好**因為 ACK 未到就當失敗 — 只要 `sendMessage` 冇 throw 就 count as success（ACK 係 bonus info）
-- Message Yourself chat（`targetNumber === selfPhone`）ACK 可能一直係 0，要 special case
+⚠️ **重要**：`sendMessage` 成功（無 throw）就 count as success。ACK 只係 bonus info —「Message Yourself」嘅 chat ACK 可能一直係 0。
 
-**Open browser after listen**：
+**Listen + auto-open browser**：
 ```js
 app.listen(PORT, () => {
-  console.log(`💛 running → http://localhost:${PORT}`);
+  console.log(`running → http://localhost:${PORT}`);
   try { execSync(`open http://localhost:${PORT}`); } catch {}
 });
+client.initialize();
 ```
 
 ### 6.6 `public/index.html`
 
-Dashboard 結構：
-1. Header（title + subtitle）
-2. WhatsApp 狀態 card（pill：啟動中 / QR / 認證中 / 已連接 / 錯誤）
-3. QR code display（status=qr 時顯示）
-4. Main panel（status=ready 先顯示）：
-   - **🎨 揀紙樣** card：template grid + textarea
-   - **⚙️ 發送設定** card：Test mode toggle + target number input + delay min/max
-   - **👥 學生名單** card：Fetch 掣 + 「跳過 N 日內已 send」toggle + student list（checkbox + 姓名 + phone + tier + 「X 日前 send 過」badge）
-   - **🚀 執行** card：Start/Stop + progress bar + log textarea
+3 個主要 section，按 state 顯示：
 
-用 iOS/macOS 風格 CSS（白底、圓角 card、綠色 WhatsApp 色 `#25d366` 做 primary button）。
+**Setup Card**（`id="setupCard"`）— 當 `notionConfigured = false` 時顯示
+- H2：「⚙️ 首次設定 — 連接你嘅 Notion CRM」
+- Step 1：Create Notion Integration（link 到 `notion.so/my-integrations`，提示用戶 copy token）+ input `#setupToken`
+- Step 2：分享 CRM 畀 Integration（指示 Connections menu）+ input `#setupDbUrl`
+- Step 3：Product filter（optional）+ input `#setupProductFilter`
+- Buttons：`#btnSetupTest`（🧪 Test 連線）`#btnSetupSave`（💾 Save + 啟動）
+- 反饋 div `#setupMsg`
+
+**WhatsApp Status Card**（`#waCard`）— 當 `notionConfigured = true` 時顯示
+- Pill 顯示 status（啟動中/等 Scan QR/認證中/已連接/錯誤）
+- QR image `#qrImg`（status = qr 時顯示）
+
+**Main Panel**（`#mainPanel`）— `notionConfigured = true` AND `status = ready` 時顯示
+- **🎨 揀紙樣 card**：template grid（5 個 card）+ textarea
+- **⚙️ 發送設定 card**：Test mode checkbox + target number + delay min/max
+- **👥 客戶名單 card**：Fetch 掣 + 揀咗 counter + 重設 CRM 掣 + 跳過 N 日 filter + list（checkbox + country flag + 姓名 + meta + sent badge + status pill）
+- **🚀 執行 card**：Start/Stop + progress bar + log
+
+用 WhatsApp 綠色 `#25d366` 做 primary，iOS 風格圓角卡。
 
 ### 6.7 `public/app.js`
 
-- 用 `EventSource('/api/events')` listen SSE
-- `loadTemplates()` / `fetchStudents()` / `startCampaign()` / `stopCampaign()` 等 function
-- 揀 template 時自動 fill textarea
-- Start 時 confirm dialog（非 test mode 要 Edward confirm）
-- Progress event → update individual student badge（pending / sending / sent / error）
-- 完成後 auto re-fetch（新 "今日已 send" badge 即時反映）
+State：`{ templates, selectedTemplateId, students, notionConfigured }`.
+
+**關鍵 function**：
+- `updatePanels()` — 根據 `state.notionConfigured` 同 `status.ready` 決定邊啲 card 顯示
+- `testNotionConfig()` / `saveNotionConfig()` — POST /api/config/{test,save}
+- `reconfigure()` — 清 setup inputs + 設 notionConfigured = false + updatePanels
+- `renderStudents()` — render list，加 country flag、sent badge（7d/30d/>30d）、checkbox default 按 skipRecent + skipDays
+- SSE listeners：`hello` / `wa_status` / `config_saved` / `progress` / `wait` / `campaign_done`
 
 ### 6.8 `start.command`（macOS 雙擊）
 
@@ -265,50 +278,56 @@ if [ ! -d "node_modules" ]; then npm install; fi
 node server.js
 ```
 
-`chmod +x start.command` 後可以雙擊。
+`chmod +x start.command` 之後可以雙擊。
 
-## 7. 執行順序（從冇到有）
+## 7. 學生嘅使用 flow
 
-1. `mkdir whatsapp-warmup-tool && cd whatsapp-warmup-tool`
-2. `npm init -y`，update `package.json` 加 `"type": "module"` 同 scripts
-3. `npm install express @notionhq/client better-sqlite3 dotenv qrcode whatsapp-web.js`
-4. 建 `.env.example`、`.gitignore`
-5. 寫 `lib.js`（最基礎，其他 depend on 佢）
-6. 寫 `db.js`
-7. 寫 `templates.js`
-8. 寫 `public/index.html` + `public/app.js`
-9. 寫 `server.js`（最後，因為要 call 上面所有 module）
-10. 建 `start.command`，chmod +x
-11. 填 `.env`，`npm start` 測試
-12. First run 會彈 QR code → 用手機 WhatsApp scan → 登入後就 ready
+**第一次 setup**（5 分鐘）：
+
+1. `git clone <repo>` + `npm install`
+2. `npm start`（或雙擊 `start.command`）
+3. Browser 自動開 → 見到 **Setup Wizard**
+4. Step 1：去 `notion.so/my-integrations` 整 integration，copy token 返嚟 paste
+5. Step 2：去 Notion CRM page → Connections → add integration → copy URL paste 返嚟
+6. 撳 Test → 見到綠色 "連到 XXX" → 撳 Save
+7. 自動跳去 WhatsApp QR stage → 用手機 scan
+8. 連接成功 → Fetch Notion → 揀 template → Start
+
+**之後每次**：
+- 雙擊 `start.command` → Browser 彈出 → Session auto-login → Fetch → Start
 
 ## 8. 容易踩嘅坑
 
-- **Puppeteer cold-start timeout**：第一次 launch 可能 30-60 秒，要加 `protocolTimeout: 180000`
-- **Chromium singleton lock**：如果之前 process crash，`.wwebjs_auth/session/Singleton*` 可能 lock 住，restart 前刪曬
-- **ACK false-fail**：Message Yourself ACK 可能一直 0 — 唔好因此 mark 失敗
-- **Notion API rate limit**：3 req/s，`updateLastContact` 用 `.catch()` 唔好 await 阻住 send loop
-- **SSE connection**：Express 5 要 `res.flushHeaders()` 立即 flush header，否則 client 等住
-- **電話 normalize**：記得 handle 中文全形 `＋`（U+FF0B）—好多 CRM data 會有
+- **whatsapp-web.js version**：一定要 `^1.34` 或以上，舊版對新 WhatsApp Web schema fail
+- **Puppeteer cold-start timeout**：set `protocolTimeout: 180000`
+- **Chromium Singleton lock**：如果之前 crash，啟動前 `rm -f .wwebjs_auth/session/Singleton*`
+- **ACK false-fail**：`sendMessage` 成功就係成功，ACK 未到 ≠ 失敗
+- **Notion rate limit**：3 req/s，`updateLastContact` 用 `.catch()` 唔好 block
+- **電話全形 `＋`**：U+FF0B，normalize 時要換半形
+- **SSE Express 5**：要 `res.flushHeaders()` 立即 flush
+- **Setup wizard reload**：`saveConfig` 後 call `loadConfig()` 即時 reload Notion client，唔需要重啟 server
 
-## 9. 最終成品應該點樣
+## 9. 最終成品應該點
 
-- 開 terminal run `npm start`（或者雙擊 `start.command`）
-- Browser 自動開 `http://localhost:3456`
-- 見到 WhatsApp 狀態 card
-- 第一次：scan QR → 10 秒後變「已連接」
-- 撳「🔄 Fetch Notion」→ 10-25 個 student 列出
-- 揀 template「📚 課程 check-in」
-- 撳「▶ Start Campaign」→ 彈 confirm → 確認
-- Chromium headless 喺後台自動 send，每條 message 間 random delay
-- Dashboard 見到 real-time：Kk ✓ → 勤易 ✓ → Ada ✓
-- 完成後 Notion 個 row 自動 populate「上次關心日期」= 今日
-- 再 Fetch，啱啱 send 嗰啲變灰 + uncheck（30 日內 skip）
+- `npm start` → Browser 自動彈
+- 第一次：見到 Setup Wizard → 填 Notion integration → Test → Save
+- 自動切換：WhatsApp QR → Scan → Ready
+- Fetch Notion → 25 個客戶（帶國旗 🇭🇰🇸🇬🇲🇾 等）
+- 揀「📚 課程 check-in」template
+- 撳 Start Campaign → 彈 confirm → 確認
+- 後台 Puppeteer 自動逐個 send，每條 random 10-20 秒 delay
+- 見實時進度：Kk ✓ → 勤易 ✓ → Ada ✓
+- 完成後 Notion 自動填「上次關心日期」= 今日
+- 再 Fetch → 啱啱 send 嗰啲變灰 + 標「今日已 send」
 
 ---
 
 # 結束
 
-好，Claude，開始幫我建。如果有任何嘢需要我 clarify，問我。建完逐個 file run 一次確保冇 syntax error。
+好，Claude，跟住步驟 1-9 由零起建。完成後每個 file 跑一次確保冇 syntax error，然後：
 
-完成後 send 我一句「✅ 完成，試下撳 start.command」。
+- 建 `.env.example`（placeholder 格式）但**唔好**建 `.env`（俾 setup wizard 自己造）
+- Run `npm start` 確認 server 啟動
+- 如果 WhatsApp 卡「啟動中」→ 升級 `npm install whatsapp-web.js@latest` 再試
+
+完成後跟我講「✅ 完成，跑 `npm start` 試下」。
